@@ -1,6 +1,7 @@
 
 # Originally by Matthias Baas.
 # Updated by Pierre Gay to work without pygame or cgkit.
+from collections import namedtuple
 
 import sys, os, random, time
 from math import *
@@ -9,6 +10,8 @@ from OpenGL.GLU import *
 from OpenGL.GLUT import *
 
 import ode
+
+from geometry import V3
 
 # geometric utility functions
 def scalp (vec, scal):
@@ -74,6 +77,18 @@ def draw_body(body):
         glutSolidCube(1)
     glPopMatrix()
 
+def draw_joint(joint):
+
+    x,y,z = joint.getAnchor()
+    rot = [1, 0, 0, 0.,
+           0, 1, 0, 0.,
+           0, 0, 1, 0.,
+           x, y, z, 1.0]
+    glPushMatrix()
+    glMultMatrixd(rot)
+    glScalef(0.1, 0.1, 0.1)
+    glutSolidCube(1)
+    glPopMatrix()
 
 def create_box(world, space, density, lx, ly, lz):
     """Create a box body and its corresponding geom."""
@@ -99,35 +114,46 @@ def drop_object():
 
     global joints, bodies, geom
 
-    body, geom = create_box(world, space, 1000, 1, 1, 1)
-    body.setPosition((0, 0.5, 0))
-    bodies.append(body)
-    geoms.append(geom)
+    body_dimensions = V3(1, 0.5, 0.5)
+    body_position = V3(0, 3, 0)
+    gap = V3(0.4, 0, 0)
+    anchor_position = V3(body_dimensions.x/2.0 + gap.x/2.0, 3, 0)
 
-    body2, geom2 = create_box(world, space, 100, 0.5, 0.5, 0.75)
-    body2.setPosition((0.75, 0.75, 0))
-    bodies.append(body2)
-    geoms.append(geom2)
+    for body_number in range(5):
+        body, geom = create_box(world, space, 1000, *body_dimensions)
+        body.setPosition(body_position)
 
-    body3, geom3 = create_box(world, space, 100, 0.4, 0.4, 0.5)
-    body3.setPosition((1.2, 0.8, 0))
-    bodies.append(body3)
-    geoms.append(geom3)
+        print "b", body_position
+        if body_number > 0:
+            last_body = bodies[-1]
+            hinge = ode.HingeJoint(world)
+            hinge.attach(last_body, body)
+            hinge.setAnchor(anchor_position)
+            print "j", anchor_position
+            hinge.setAxis((0, 0, 1))
+            hinge.setParam(ode.ParamFMax, 10000)
+            joints.append(hinge)
+            anchor_position += V3(body_dimensions.x + gap.x, 0, 0)
 
-    hinge2 = ode.HingeJoint(world)
-    hinge2.attach(body, body2)
-    hinge2.setAnchor((0.5, 1, 0))
-    hinge2.setAxis((0, 0, 1))
-    hinge2.setParam(ode.ParamFMax, 10000)
+        body_position += V3(body_dimensions.x + gap.x, 0, 0)
+        bodies.append(body)
+        geoms.append(geom)
 
-    hinge = ode.HingeJoint(world)
-    hinge.attach(body2, body3)
-    hinge.setAnchor((1.0, 1, 0))
-    hinge.setAxis((0, 0, 1))
-    hinge.setParam(ode.ParamFMax, 10000)
 
-    joints.append(hinge2)
-    joints.append(hinge)
+#    hinge2 = ode.HingeJoint(world)
+#    hinge2.attach(body, body2)
+#    hinge2.setAnchor((0.5, 4, 0))
+#    hinge2.setAxis((0, 0, 1))
+#    hinge2.setParam(ode.ParamFMax, 10000)
+#
+#    hinge = ode.HingeJoint(world)
+#    hinge.attach(body2, body3)
+#    hinge.setAnchor((1.0, 4, 0))
+#    hinge.setAxis((0, 0, 1))
+#    hinge.setParam(ode.ParamFMax, 10000)
+#
+#    joints.append(hinge2)
+#    joints.append(hinge)
 
 # Collision callback
 def near_callback(args, geom1, geom2):
@@ -216,6 +242,8 @@ def _drawfunc ():
     prepare_GL()
     for b in bodies:
         draw_body(b)
+    for j in joints:
+        draw_joint(j)
 
     glutSwapBuffers ()
 
