@@ -11,19 +11,21 @@ import ode
 
 from geometry import V3
 
-def prepare_GL():
+
+def prepare_GL(camera_x, camera_z):
     # Viewport
     glViewport(0,0,640,480)
 
     # Initialize
     glEnable(GL_CULL_FACE)
     glEnable(GL_DEPTH_TEST)
-    glClearColor(0.8,0.8,0.9,0)
+    glClearColor(0.8,0.8,1.0,0)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
     glEnable(GL_LIGHTING)
     glEnable(GL_NORMALIZE)
     glShadeModel(GL_FLAT)
+    glEnable(GL_COLOR_MATERIAL)
 
     # Projection
     glMatrixMode(GL_PROJECTION)
@@ -46,7 +48,24 @@ def prepare_GL():
     glEnable(GL_LIGHT1)
 
     # View transformation
-    gluLookAt (2.4, 3.6, 4.8, 0.5, 0.5, 0, 0, 1, 0)
+    gluLookAt (camera_x+2.4, 1.6, camera_z+4.8, camera_x+0.5, 0.5, camera_z+0, 0, 1, 0)
+
+def draw_floor():
+    glPushMatrix()
+    glScalef(100, 0.01, 100)
+    glColor(0.5, 0.2, 0.2)
+    glutSolidCube(1)
+    glPopMatrix()
+    for x in range(-10, 10):
+        for z in range(-2, 2):
+            glPushMatrix()
+            glMultMatrixd([3, 0, 0, 0,
+                           0, 0.1, 0, 0,
+                           0, 0, 3, 0,
+                           x*4, -0.04, z*4, 1])
+            glColor(0.6, 0.3, 0.3)
+            glutSolidCube(1)
+            glPopMatrix()
 
 def draw_body(body):
     """Draw an ODE body.
@@ -62,6 +81,7 @@ def draw_body(body):
     if body.shape=="box":
         sx,sy,sz = body.boxsize
         glScalef(sx, sy, sz)
+        glColor(0.2, 0.7, 0.2)
         glutSolidCube(1)
     glPopMatrix()
 
@@ -74,6 +94,7 @@ def draw_joint(joint):
     glPushMatrix()
     glMultMatrixd(rot)
     glScalef(0.1, 0.1, 0.1)
+    glColor(1.0, 1.0, 0.8)
     glutSolidCube(1)
     glPopMatrix()
 
@@ -100,10 +121,10 @@ def create_agent():
     """Create and drop an agent into the world"""
     global joints, bodies, geom
 
+    body_position = V3(2, 3, -1)
     body_dimensions = V3(0.1, 0.5, 0.5)
-    body_position = V3(0, 3, 0)
     gap = V3(0.05, 0, 0)
-    anchor_position = V3(body_dimensions.x/2.0 + gap.x/2.0, 3, 0)
+    anchor_position = V3(body_dimensions.x/2.0 + gap.x/2.0, 0, 0) + body_position
 
     for body_number in range(30):
         body, geom = create_box(world, space, 1000, *body_dimensions)
@@ -183,22 +204,23 @@ state = 0
 counter = 0
 lasttime = time.time()
 
+camera_x = 0
+camera_z = 0
+
 create_agent()
 
 # keyboard callback
 def _keyfunc (c, x, y):
-    if c == 'z':
-        joints[0].setParam(ode.ParamVel, -3.0)
-    if c == 'x':
-        joints[0].setParam(ode.ParamVel, 3.0)
-    if c == ' ':
-        joints[0].setParam(ode.ParamVel, 0.0)
-        joints[1].setParam(ode.ParamVel, 0.0)
-
+    global camera_x, camera_z
+    distance = 0.15
     if c == 'a':
-        joints[1].setParam(ode.ParamVel, -3.0)
+        camera_x -= distance
+    if c == 'd':
+        camera_x += distance
+    if c == 'w':
+        camera_z -= distance
     if c == 's':
-        joints[1].setParam(ode.ParamVel, 3.0)
+        camera_z += distance
 
 def _update(t):
     for (i, joint) in enumerate(joints):
@@ -211,7 +233,8 @@ glutTimerFunc (50, _update, 1)
 # draw callback
 def _drawfunc ():
     # Draw the scene
-    prepare_GL()
+    prepare_GL(camera_x, camera_z)
+    draw_floor()
     for b in bodies:
         draw_body(b)
     for j in joints:
